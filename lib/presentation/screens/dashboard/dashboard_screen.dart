@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class DashboardScreen extends StatefulWidget {
+import '../../../providers/air_quality_provider.dart';
+import '../../../data/models/air_quality_data.dart';
+import '../../../domain/entities/air_quality.dart';
+
+import '../sensor_details/sensor_details_screen.dart';
+import '../history/history_screen.dart';
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _selectedIndex = 0;
 
   // Cores utilizadas na interface.
@@ -17,87 +25,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const Color _textColor = Color(0xFFF1F5F4);
   static const Color _secondaryTextColor = Color(0xFF9AA6AC);
 
-  // Dados fictícios para desenvolver a interface.
-  // Posteriormente, receberemos esses valores via MQTT.
-  final List<_SensorData> _sensors = [
-    _SensorData(
-      name: 'CO₂',
-      description: 'Dióxido de carbono',
-      value: '850',
-      unit: 'ppm',
-      icon: Icons.co2,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'VOC',
-      description: 'Índice de compostos orgânicos',
-      value: '120',
-      unit: 'índice',
-      icon: Icons.air,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'Temperatura',
-      description: 'Temperatura ambiente',
-      value: '25,4',
-      unit: '°C',
-      icon: Icons.thermostat,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'Umidade',
-      description: 'Umidade relativa do ar',
-      value: '58,2',
-      unit: '%',
-      icon: Icons.water_drop_outlined,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'PM1.0',
-      description: 'Partículas finas',
-      value: '4,5',
-      unit: 'µg/m³',
-      icon: Icons.grain,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'PM2.5',
-      description: 'Partículas finas',
-      value: '8,2',
-      unit: 'µg/m³',
-      icon: Icons.blur_on,
-      status: 'Demonstrativo',
-    ),
-    _SensorData(
-      name: 'PM10',
-      description: 'Partículas inaláveis',
-      value: '12,7',
-      unit: 'µg/m³',
-      icon: Icons.scatter_plot_outlined,
-      status: 'Demonstrativo',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final airQualityAsync = ref.watch(airQualityStreamProvider);
+    ref.watch(airQualityHistoryProvider);
+
     return Scaffold(
       backgroundColor: _backgroundColor,
-
       body: SafeArea(
-        child: _selectedIndex == 0
-            ? _buildDashboard()
-            : _buildPlaceholderPage(),
+        child: airQualityAsync.when(
+          data: (data) {
+            switch (_selectedIndex) {
+              case 0:
+                return _buildDashboard(data);
+              case 1:
+                return SensorsScreen(data: data);
+              case 2:
+                return const HistoryScreen();
+              default:
+                return _buildPlaceholderPage();
+            }
+          },
+          loading: _buildLoading,
+          error: (error, stackTrace) => _buildError(error),
+        ),
       ),
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
-
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -124,7 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDashboard() {
+  Widget _buildDashboard(AirQualityData data) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWideScreen = constraints.maxWidth >= 700;
@@ -153,7 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  _buildAirQualityCard(),
+                  _buildAirQualityCard(data),
 
                   const SizedBox(height: 28),
 
@@ -164,15 +123,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  _buildSensorGrid(isWideScreen),
+                  _buildSensorGrid(isWideScreen, data),
 
                   const SizedBox(height: 24),
 
-                  _buildUpdateInfo(),
+                  _buildUpdateInfo(data),
 
                   const SizedBox(height: 16),
-
-                  _buildDemoNotice(),
                 ],
               ),
             ),
@@ -293,14 +250,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAirQualityCard() {
-    const statusColor = Color(0xFF43B581);
+  Widget _buildAirQualityCard(AirQualityData data) {
+    final quality = _worstQuality(data);
+    final statusColor = _qualityColor(quality);
 
     return Container(
       width: double.infinity,
-
       padding: const EdgeInsets.all(22),
-
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -310,14 +266,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Color(0xFF1B2928),
           ],
         ),
-
         borderRadius: BorderRadius.circular(24),
-
         border: Border.all(
           color: statusColor.withOpacity(0.25),
         ),
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -326,21 +279,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 width: 42,
                 height: 42,
-
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(14),
                 ),
-
-                child: const Icon(
+                child: Icon(
                   Icons.eco_outlined,
                   color: statusColor,
                   size: 24,
                 ),
               ),
-
               const SizedBox(width: 12),
-
               const Expanded(
                 child: Text(
                   'QUALIDADE DO AR',
@@ -352,7 +301,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-
               const Icon(
                 Icons.arrow_outward_rounded,
                 color: _secondaryTextColor,
@@ -360,11 +308,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 24),
-
-          const Text(
-            'Boa',
+          Text(
+            quality.label,
             style: TextStyle(
               color: statusColor,
               fontSize: 36,
@@ -372,32 +318,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
               letterSpacing: -1,
             ),
           ),
-
           const SizedBox(height: 8),
-
           const Text(
-            'Classificação ilustrativa',
+            'Classificação baseada nos índices dos sensores',
             style: TextStyle(
               color: _textColor,
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
-
           const SizedBox(height: 20),
-
           Container(
             width: double.infinity,
             height: 5,
-
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.10),
               borderRadius: BorderRadius.circular(10),
             ),
-
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
-              widthFactor: 0.35,
-
+              widthFactor: (quality.index + 1) / 5,
               child: Container(
                 decoration: BoxDecoration(
                   color: statusColor,
@@ -406,11 +345,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
-
           const Text(
-            'Dados demonstrativos — sem avaliação real.',
+            'Dados simulados para desenvolvimento.',
             style: TextStyle(
               color: _secondaryTextColor,
               fontSize: 11,
@@ -421,7 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSensorGrid(bool isWideScreen) {
+  Widget _buildSensorGrid(bool isWideScreen, AirQualityData data) {
     final width = MediaQuery.sizeOf(context).width;
 
     final crossAxisCount = isWideScreen
@@ -430,21 +367,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ? 1
             : 2;
 
+    final sensors = [
+      _SensorData(
+        name: 'CO₂',
+        value: data.co2.toStringAsFixed(0),
+        unit: 'ppm',
+        icon: Icons.co2,
+      ),
+      _SensorData(
+        name: 'VOC',
+        value: data.vocIndex.toStringAsFixed(0),
+        unit: 'índice',
+        icon: Icons.air,
+      ),
+      _SensorData(
+        name: 'Temperatura',
+        value: data.temperature.toStringAsFixed(1).replaceAll('.', ','),
+        unit: '°C',
+        icon: Icons.thermostat,
+      ),
+      _SensorData(
+        name: 'Umidade',
+        value: data.humidity.toStringAsFixed(1).replaceAll('.', ','),
+        unit: '%',
+        icon: Icons.water_drop_outlined,
+      ),
+      _SensorData(
+        name: 'PM1.0',
+        value: data.pm01.toStringAsFixed(1).replaceAll('.', ','),
+        unit: 'µg/m³',
+        icon: Icons.grain,
+      ),
+      _SensorData(
+        name: 'PM2.5',
+        value: data.pm25.toStringAsFixed(1).replaceAll('.', ','),
+        unit: 'µg/m³',
+        icon: Icons.blur_on,
+      ),
+      _SensorData(
+        name: 'PM10',
+        value: data.pm10.toStringAsFixed(1).replaceAll('.', ','),
+        unit: 'µg/m³',
+        icon: Icons.scatter_plot_outlined,
+      ),
+    ];
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-
-      itemCount: _sensors.length,
-
+      itemCount: sensors.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
         mainAxisExtent: 154,
       ),
-
       itemBuilder: (context, index) {
-        return _buildSensorCard(_sensors[index]);
+        return _buildSensorCard(sensors[index]);
       },
     );
   }
@@ -550,66 +529,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildUpdateInfo() {
-    return const Row(
+  Widget _buildUpdateInfo(AirQualityData data) {
+    final time = data.receivedAt;
+
+    final formattedTime =
+        '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}:'
+        '${time.second.toString().padLeft(2, '0')}';
+
+    return Row(
       children: [
-        Icon(
+        const Icon(
           Icons.schedule_rounded,
           size: 16,
           color: _secondaryTextColor,
         ),
-
-        SizedBox(width: 8),
-
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Sem conexão • Dados fictícios',
-            style: TextStyle(
+            'Última atualização: $formattedTime • Simulação',
+            style: const TextStyle(
               color: _secondaryTextColor,
               fontSize: 12,
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDemoNotice() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-
-      decoration: BoxDecoration(
-        color: _surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            color: _primaryColor,
-            size: 20,
-          ),
-
-          SizedBox(width: 10),
-
-          Expanded(
-            child: Text(
-              'Esta é uma prévia da interface. '
-              'Os valores e a classificação são fictícios '
-              'e serão substituídos pelas medições reais '
-              'quando a integração estiver pronta.',
-              style: TextStyle(
-                color: _secondaryTextColor,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -685,22 +630,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  AirQuality _worstQuality(AirQualityData data) {
+    final qualities = [
+      data.humidityQuality,
+      data.vocQuality,
+      data.co2Quality,
+      data.pm01Quality,
+      data.pm25Quality,
+      data.pm10Quality,
+    ];
+
+    return qualities.reduce(
+      (current, next) =>
+          current.index > next.index ? current : next,
+    );
+  }
+
+  Color _qualityColor(AirQuality quality) {
+    switch (quality) {
+      case AirQuality.boa:
+        return const Color(0xFF43B581);
+      case AirQuality.moderada:
+        return const Color(0xFFF2B84B);
+      case AirQuality.ruim:
+        return const Color(0xFFFF914D);
+      case AirQuality.muitoRuim:
+        return const Color(0xFFE85D75);
+      case AirQuality.pessima:
+        return const Color(0xFFB65DE8);
+    }
+  }
+
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: _primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildError(Object error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: Colors.redAccent,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Não foi possível carregar as medições.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _textColor,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _secondaryTextColor,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SensorData {
   final String name;
-  final String description;
   final String value;
   final String unit;
   final IconData icon;
-  final String status;
 
   const _SensorData({
     required this.name,
-    required this.description,
     required this.value,
     required this.unit,
     required this.icon,
-    required this.status,
   });
 }
