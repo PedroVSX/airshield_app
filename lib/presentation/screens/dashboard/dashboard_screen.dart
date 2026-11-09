@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/air_quality_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../widgets/connection_status.dart';
+import '../settings/settings_screen.dart';
 import '../../../data/models/air_quality_data.dart';
 import '../../../domain/entities/air_quality.dart';
 
@@ -33,21 +36,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Scaffold(
       backgroundColor: _backgroundColor,
       body: SafeArea(
-        child: airQualityAsync.when(
-          data: (data) {
-            switch (_selectedIndex) {
-              case 0:
-                return _buildDashboard(data);
-              case 1:
-                return SensorsScreen(data: data);
-              case 2:
-                return const HistoryScreen();
-              default:
-                return _buildPlaceholderPage();
-            }
-          },
-          loading: _buildLoading,
-          error: (error, stackTrace) => _buildError(error),
+        child: Column(
+          children: [
+            const ConnectionStatus(),
+            Expanded(
+              child: _selectedIndex == 3
+                  ? const SettingsScreen()
+                  : _selectedIndex == 2
+                  ? const HistoryScreen()
+                  : airQualityAsync.when(
+                      skipLoadingOnRefresh: false,
+                      skipLoadingOnReload: false,
+                      data: (data) {
+                        switch (_selectedIndex) {
+                          case 0:
+                            return _buildDashboard(data);
+                          case 1:
+                            return SensorsScreen(
+                              data: data,
+                              demo: ref.watch(settingsProvider).demo,
+                            );
+                          case 2:
+                            return const HistoryScreen();
+                          default:
+                            return _buildDashboard(data);
+                        }
+                      },
+                      loading: _buildLoading,
+                      error: (error, stackTrace) => _buildError(error),
+                    ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
@@ -116,10 +135,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                   const SizedBox(height: 28),
 
-                  _buildSectionTitle(
-                    'Monitoramento',
-                    'Medições dos sensores',
-                  ),
+                  _buildSectionTitle('Monitoramento', 'Medições dos sensores'),
 
                   const SizedBox(height: 16),
 
@@ -147,15 +163,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           height: 48,
 
           decoration: BoxDecoration(
-            color: _primaryColor.withOpacity(0.12),
+            color: _primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
           ),
 
-          child: const Icon(
-            Icons.air_rounded,
-            color: _primaryColor,
-            size: 28,
-          ),
+          child: const Icon(Icons.air_rounded, color: _primaryColor, size: 28),
         ),
 
         const SizedBox(width: 12),
@@ -178,39 +190,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
               Text(
                 'Qualidade do ar interior',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _secondaryTextColor,
-                ),
+                style: TextStyle(fontSize: 12, color: _secondaryTextColor),
               ),
             ],
           ),
         ),
 
         Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
 
           decoration: BoxDecoration(
             color: const Color(0xFF30291D),
             borderRadius: BorderRadius.circular(20),
           ),
 
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.circle,
-                size: 8,
-                color: Color(0xFFF2B84B),
-              ),
+              Icon(Icons.circle, size: 8, color: Color(0xFFF2B84B)),
 
               SizedBox(width: 6),
 
               Text(
-                'Demo',
+                ref.watch(settingsProvider).demo ? 'Demo' : 'MQTT',
                 style: TextStyle(
                   color: Color(0xFFF2B84B),
                   fontSize: 12,
@@ -241,16 +243,64 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
         Text(
           subtitle,
-          style: const TextStyle(
-            color: _secondaryTextColor,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: _secondaryTextColor, fontSize: 12),
         ),
       ],
     );
   }
 
   Widget _buildAirQualityCard(AirQualityData data) {
+    if (!ref.watch(settingsProvider).demo) {
+      final allZero = [
+        data.co2,
+        data.temperature,
+        data.humidity,
+        data.vocIndex,
+        data.pm01,
+        data.pm25,
+        data.pm10,
+        data.pm1,
+      ].whereType<double>().every((v) => v == 0);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: _surfaceColor,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Leituras do dispositivo',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Veja os códigos de qualidade originais na aba Sensores. '
+              'A escala de classificação precisa ser confirmada com o firmware.',
+            ),
+            if (allZero)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'Todos os valores recebidos são zero. Confirme se '
+                  'os sensores já foram inicializados.',
+                  style: TextStyle(color: Color(0xFFF2B84B)),
+                ),
+              ),
+            if (data.retained)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'Mensagem armazenada no broker. O horário original '
+                  'da medição não foi informado.',
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     final quality = _worstQuality(data);
     final statusColor = _qualityColor(quality);
 
@@ -261,15 +311,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF203B35),
-            Color(0xFF1B2928),
-          ],
+          colors: [Color(0xFF203B35), Color(0xFF1B2928)],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: statusColor.withOpacity(0.25),
-        ),
+        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,14 +325,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  Icons.eco_outlined,
-                  color: statusColor,
-                  size: 24,
-                ),
+                child: Icon(Icons.eco_outlined, color: statusColor, size: 24),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -321,17 +362,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 8),
           const Text(
             'Classificação baseada nos índices dos sensores',
-            style: TextStyle(
-              color: _textColor,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: _textColor, fontSize: 13),
           ),
           const SizedBox(height: 20),
           Container(
             width: double.infinity,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10),
+              color: Colors.white.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: FractionallySizedBox(
@@ -348,10 +386,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 10),
           const Text(
             'Dados simulados para desenvolvimento.',
-            style: TextStyle(
-              color: _secondaryTextColor,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: _secondaryTextColor, fontSize: 11),
           ),
         ],
       ),
@@ -364,8 +399,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final crossAxisCount = isWideScreen
         ? 3
         : width < 360
-            ? 1
-            : 2;
+        ? 1
+        : 2;
 
     final sensors = [
       _SensorData(
@@ -375,9 +410,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         icon: Icons.co2,
       ),
       _SensorData(
-        name: 'VOC',
+        name: 'COV',
         value: data.vocIndex.toStringAsFixed(0),
-        unit: 'índice',
+        unit: ref.watch(settingsProvider).demo ? 'índice' : 'valor do firmware',
         icon: Icons.air,
       ),
       _SensorData(
@@ -393,7 +428,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         icon: Icons.water_drop_outlined,
       ),
       _SensorData(
-        name: 'PM1.0',
+        name: 'PM (campo 0.1)',
         value: data.pm01.toStringAsFixed(1).replaceAll('.', ','),
         unit: 'µg/m³',
         icon: Icons.grain,
@@ -406,7 +441,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
       _SensorData(
         name: 'PM10',
-        value: data.pm10.toStringAsFixed(1).replaceAll('.', ','),
+        value: data.pm10?.toStringAsFixed(1).replaceAll('.', ',') ?? '—',
         unit: 'µg/m³',
         icon: Icons.scatter_plot_outlined,
       ),
@@ -436,9 +471,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         color: _surfaceColor,
         borderRadius: BorderRadius.circular(20),
 
-        border: Border.all(
-          color: Colors.white.withOpacity(0.04),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
 
       child: Column(
@@ -451,15 +484,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 height: 36,
 
                 decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.10),
+                  color: _primaryColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
 
-                child: Icon(
-                  sensor.icon,
-                  color: _primaryColor,
-                  size: 20,
-                ),
+                child: Icon(sensor.icon, color: _primaryColor, size: 20),
               ),
 
               const Spacer(),
@@ -547,87 +576,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Última atualização: $formattedTime • Simulação',
-            style: const TextStyle(
-              color: _secondaryTextColor,
-              fontSize: 12,
-            ),
+            'Recebido às $formattedTime • '
+            '${ref.watch(settingsProvider).demo ? 'Simulação' : 'MQTT'}',
+            style: const TextStyle(color: _secondaryTextColor, fontSize: 12),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPlaceholderPage() {
-    final titles = [
-      'Início',
-      'Sensores',
-      'Histórico',
-      'Configurações',
-    ];
-
-    final descriptions = [
-      'Visão geral da qualidade do ar.',
-      'Detalhes das medições dos sensores.',
-      'Histórico e gráficos das medições.',
-      'Preferências e conexão do dispositivo.',
-    ];
-
-    final icons = [
-      Icons.home_rounded,
-      Icons.sensors_rounded,
-      Icons.show_chart_rounded,
-      Icons.settings_rounded,
-    ];
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icons[_selectedIndex],
-              size: 56,
-              color: _primaryColor,
-            ),
-
-            const SizedBox(height: 16),
-
-            Text(
-              titles[_selectedIndex],
-              style: const TextStyle(
-                color: _textColor,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              descriptions[_selectedIndex],
-              textAlign: TextAlign.center,
-
-              style: const TextStyle(
-                color: _secondaryTextColor,
-                fontSize: 14,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            const Text(
-              'Em desenvolvimento',
-              style: TextStyle(
-                color: _primaryColor,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -641,9 +595,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       data.pm10Quality,
     ];
 
-    return qualities.reduce(
-      (current, next) =>
-          current.index > next.index ? current : next,
+    return qualities.whereType<AirQuality>().reduce(
+      (current, next) => current.index > next.index ? current : next,
     );
   }
 
@@ -663,9 +616,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: _primaryColor,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sensors, size: 48, color: _primaryColor),
+            const SizedBox(height: 16),
+            const Text('Aguardando medições', style: TextStyle(fontSize: 24)),
+            const SizedBox(height: 8),
+            const Text(
+              'Configure o broker e o dispositivo para receber os dados. '
+              'O histórico salvo continua disponível sem conexão.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => setState(() => _selectedIndex = 3),
+              child: const Text('Configurar conexão'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -677,28 +649,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.error_outline,
-              color: Colors.redAccent,
-              size: 48,
-            ),
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
             const SizedBox(height: 16),
             const Text(
               'Não foi possível carregar as medições.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: _textColor,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: _textColor, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _secondaryTextColor,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: _secondaryTextColor, fontSize: 12),
             ),
           ],
         ),

@@ -1,120 +1,83 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/models/air_quality_data.dart';
-import '../data/services/mock_air_quality_service.dart';
+import '../data/repositories/air_quality_repository.dart';
+import 'mqtt_provider.dart';
+import 'settings_provider.dart';
 
 final airQualityStreamProvider = StreamProvider<AirQualityData>((ref) {
-  final service = MockAirQualityService();
-
-  ref.onDispose(service.dispose);
-
-  return service.stream;
+  return ref.watch(mqttServiceProvider).measurements;
 });
 
 final airQualityHistoryProvider =
     AsyncNotifierProvider<AirQualityHistoryNotifier, List<AirQualityData>>(
-  AirQualityHistoryNotifier.new,
-);
-
-class AirQualityHistoryNotifier
-    extends AsyncNotifier<List<AirQualityData>> {
-  static const int maxMeasurements = 100;
-  static const String storageKey = 'air_quality_history';
-
-  late SharedPreferences _preferences;
-
-  List<AirQualityData> _history = [];
-  final List<AirQualityData> _pendingMeasurements = [];
-
-  bool _initialized = false;
-
-  Future<void> _writeQueue = Future.value();
-
-  @override
-  Future<List<AirQualityData>> build() async {
-    // Escuta as medições. Enquanto o armazenamento carrega,
-    // mantém as novas medições temporariamente em uma fila.
-    ref.listen<AsyncValue<AirQualityData>>(
-      airQualityStreamProvider,
-      (previous, next) {
-        next.whenData(_receiveMeasurement);
-      },
+      AirQualityHistoryNotifier.new,
     );
 
-    _preferences = await SharedPreferences.getInstance();
+class HistorySaveStatus extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void report(String? message) => state = message;
+}
 
-    final savedData = _preferences.getString(storageKey);
+final historySaveStatusProvider = NotifierProvider<HistorySaveStatus, String?>(
+  HistorySaveStatus.new,
+);
 
-    if (savedData != null) {
-      try {
-        final decoded = jsonDecode(savedData);
-
-        if (decoded is List) {
-          _history = decoded.map((item) {
-            return AirQualityData.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            );
-          }).toList();
-        }
-      } catch (_) {
-        _history = [];
+class AirQualityHistoryNotifier extends AsyncNotifier<List<AirQualityData>> {
+  @override
+  List<AirQualityData> build() {
+    final key = ref.watch(
+      settingsProvider.select((config) => config.historyKey),
+    );
+    final repository = AirQualityRepository(
+      ref.watch(preferencesProvider),
+      key,
+    );
+    var history = repository.load();
+    var active = true;
+    ref.onDispose(() => active = false);
+    ref.listen<AsyncValue<AirQualityData>>(airQualityStreamProvider, (
+      previous,
+      next,
+    ) {
+      // AsyncLoading can carry the previous value when the source changes.
+      if (next.isLoading || next.hasError) return;
+      final measurement = next.asData?.value;
+      if (measurement == null ||
+          identical(previous?.asData?.value, measurement)) {
+        return;
       }
-    }
-
-    if (_history.length > maxMeasurements) {
-      _history = _history.sublist(
-        _history.length - maxMeasurements,
+      history = [...history, measurement];
+      if (history.length > AirQualityRepository.maxMeasurements) {
+        history = history.sublist(
+          history.length - AirQualityRepository.maxMeasurements,
+        );
+      }
+      state = AsyncData(List.unmodifiable(history));
+      unawaited(
+        repository
+            .save(history)
+            .then(
+              (_) {
+                if (active) {
+                  ref.read(historySaveStatusProvider.notifier).report(null);
+                }
+              },
+              onError: (Object _) {
+                if (active) {
+                  ref
+                      .read(historySaveStatusProvider.notifier)
+                      .report(
+                        'As últimas medições estão na memória, mas não puderam ser salvas.',
+                      );
+                }
+              },
+            ),
       );
-    }
-
-    _initialized = true;
-
-    // Incorpora as medições recebidas durante o carregamento.
-    for (final measurement in _pendingMeasurements) {
-      _appendMeasurement(measurement);
-    }
-
-    _pendingMeasurements.clear();
-
-    return List.unmodifiable(_history);
-  }
-
-  void _receiveMeasurement(AirQualityData measurement) {
-    if (!_initialized) {
-      _pendingMeasurements.add(measurement);
-      return;
-    }
-
-    _appendMeasurement(measurement);
-  }
-
-  void _appendMeasurement(AirQualityData measurement) {
-    _history = [
-      ..._history,
-      measurement,
-    ];
-
-    if (_history.length > maxMeasurements) {
-      _history.removeRange(
-        0,
-        _history.length - maxMeasurements,
-      );
-    }
-
-    state = AsyncData(List.unmodifiable(_history));
-
-    // Mantém as gravações na ordem em que foram solicitadas.
-    final snapshot = List<AirQualityData>.of(_history);
-
-    _writeQueue = _writeQueue.then((_) async {
-      final encoded = jsonEncode(
-        snapshot.map((item) => item.toJson()).toList(),
-      );
-
-      await _preferences.setString(storageKey, encoded);
     });
+    return List.unmodifiable(history);
   }
 }

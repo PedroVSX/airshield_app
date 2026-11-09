@@ -1,4 +1,3 @@
-
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -7,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/models/air_quality_data.dart';
 import '../../../providers/air_quality_provider.dart';
+import '../../../providers/settings_provider.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -23,12 +23,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     'Temperatura',
     'Umidade',
     'COV',
-    'PM1.0',
+    'PM (campo 0.1)',
     'PM2.5',
     'PM10',
+    'PM1.0 (firmware antigo)',
   ];
 
-  double _getValue(AirQualityData data) {
+  double? _getValue(AirQualityData data) {
     switch (_selectedMetric) {
       case 0:
         return data.co2;
@@ -44,6 +45,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         return data.pm25;
       case 6:
         return data.pm10;
+      case 7:
+        return data.pm1;
       default:
         return data.co2;
     }
@@ -58,7 +61,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       case 2:
         return '%';
       case 3:
-        return 'índice';
+        return ref.read(settingsProvider).demo ? 'índice' : 'valor do firmware';
       default:
         return 'µg/m³';
     }
@@ -71,7 +74,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     return value.toStringAsFixed(1).replaceAll('.', ',');
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final historyAsync = ref.watch(airQualityHistoryProvider);
@@ -80,9 +83,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       data: (history) => _buildContent(history),
 
       loading: () => const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF55D6BE),
-        ),
+        child: CircularProgressIndicator(color: Color(0xFF55D6BE)),
       ),
 
       error: (error, stackTrace) => const Center(
@@ -102,20 +103,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         children: [
           const Text(
             'Histórico',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Acompanhe a evolução das medições ao longo do tempo.',
-            style: TextStyle(
-              color: Color(0xFF9AA6AC),
-              fontSize: 14,
-            ),
+          Text(
+            ref.watch(settingsProvider).demo
+                ? 'Demonstração • histórico de dados simulados.'
+                : 'Histórico do dispositivo selecionado, por ordem de recebimento.',
+            style: TextStyle(color: Color(0xFF9AA6AC), fontSize: 14),
           ),
           const SizedBox(height: 24),
+          if (ref.watch(historySaveStatusProvider) case final String error)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(error, style: const TextStyle(color: Colors.orange)),
+            ),
 
           _buildMetricSelector(),
 
@@ -149,10 +151,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           dropdownColor: const Color(0xFF1B2228),
           items: List.generate(
             _metrics.length,
-            (index) => DropdownMenuItem(
-              value: index,
-              child: Text(_metrics[index]),
-            ),
+            (index) =>
+                DropdownMenuItem(value: index, child: Text(_metrics[index])),
           ),
           onChanged: (value) {
             if (value != null) {
@@ -167,7 +167,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildHistoryChart(List<AirQualityData> history) {
-    final values = history.map(_getValue).toList();
+    final values = history.map(_getValue).whereType<double>().toList();
+    if (values.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Text(
+          'Este campo não foi enviado pelo firmware nas leituras salvas.',
+        ),
+      );
+    }
 
     final spots = List.generate(
       values.length,
@@ -197,10 +205,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         children: [
           Text(
             _metrics[_selectedMetric],
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Row(
@@ -230,7 +235,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
           SizedBox(
             height: 220,
-            child: history.length < 2
+            child: values.length < 2
                 ? const Center(
                     child: Text(
                       'Aguardando mais medições para gerar o gráfico...',
@@ -257,13 +262,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         },
                       ),
                       borderData: FlBorderData(show: false),
-                      lineTouchData: const LineTouchData(
-                        enabled: true,
-                      ),
+                      lineTouchData: const LineTouchData(enabled: true),
                       lineBarsData: [
                         LineChartBarData(
                           spots: spots,
-                          isCurved: true,
+                          isCurved: false,
                           color: const Color(0xFF55D6BE),
                           barWidth: 3,
                           dotData: const FlDotData(show: false),
@@ -285,17 +288,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             children: [
               Text(
                 '${history.length} medições armazenadas',
-                style: const TextStyle(
-                  color: Color(0xFF9AA6AC),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF9AA6AC), fontSize: 12),
               ),
               const Text(
                 'Últimas 100',
-                style: TextStyle(
-                  color: Color(0xFF9AA6AC),
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Color(0xFF9AA6AC), fontSize: 12),
               ),
             ],
           ),
@@ -315,28 +312,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.show_chart_rounded,
-            size: 48,
-            color: Color(0xFF55D6BE),
-          ),
+          Icon(Icons.show_chart_rounded, size: 48, color: Color(0xFF55D6BE)),
           SizedBox(height: 16),
           Text(
             'Coletando medições',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 8),
           Text(
             'Assim que novas medições forem recebidas, '
             'seu histórico aparecerá aqui.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF9AA6AC),
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Color(0xFF9AA6AC), fontSize: 13),
           ),
         ],
       ),
@@ -352,21 +339,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: Color(0xFF55D6BE),
-          ),
+          const Icon(Icons.info_outline_rounded, color: Color(0xFF55D6BE)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               history.isEmpty
                   ? 'O histórico será preenchido automaticamente.'
                   : 'As medições são armazenadas localmente no dispositivo '
-                    'e permanecem disponíveis após fechar o aplicativo.',
-              style: const TextStyle(
-                color: Color(0xFF9AA6AC),
-                fontSize: 12,
-              ),
+                        'enquanto o aplicativo está aberto. Horários indicam o '
+                        'recebimento, não a medição; mensagens retidas podem ser antigas.',
+              style: const TextStyle(color: Color(0xFF9AA6AC), fontSize: 12),
             ),
           ),
         ],

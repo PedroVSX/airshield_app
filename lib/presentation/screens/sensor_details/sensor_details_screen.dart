@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../data/models/air_quality_data.dart';
@@ -6,11 +5,9 @@ import '../../../domain/entities/air_quality.dart';
 
 class SensorsScreen extends StatelessWidget {
   final AirQualityData data;
+  final bool demo;
 
-  const SensorsScreen({
-    super.key,
-    required this.data,
-  });
+  const SensorsScreen({super.key, required this.data, this.demo = false});
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +22,9 @@ class SensorsScreen extends StatelessWidget {
       ),
       _SensorInfo(
         name: 'Compostos orgânicos voláteis',
-        description: 'Índice de compostos orgânicos voláteis',
+        description: 'Valor COV enviado pelo firmware',
         value: data.vocIndex.toStringAsFixed(0),
-        unit: 'índice',
+        unit: demo ? 'índice' : 'valor',
         icon: Icons.air_rounded,
         quality: data.vocQuality,
       ),
@@ -47,8 +44,8 @@ class SensorsScreen extends StatelessWidget {
         quality: data.humidityQuality,
       ),
       _SensorInfo(
-        name: 'Material particulado PM1.0',
-        description: 'Partículas com diâmetro de até 1,0 µm',
+        name: 'Material particulado (campo PM 0.1)',
+        description: 'Campo "pm 0.1" do firmware; faixa a confirmar',
         value: data.pm01.toStringAsFixed(1).replaceAll('.', ','),
         unit: 'µg/m³',
         icon: Icons.grain_rounded,
@@ -65,11 +62,19 @@ class SensorsScreen extends StatelessWidget {
       _SensorInfo(
         name: 'Material particulado PM10',
         description: 'Partículas com diâmetro de até 10 µm',
-        value: data.pm10.toStringAsFixed(1).replaceAll('.', ','),
+        value: data.pm10?.toStringAsFixed(1).replaceAll('.', ',') ?? '—',
         unit: 'µg/m³',
         icon: Icons.bubble_chart_rounded,
         quality: data.pm10Quality,
       ),
+      if (data.pm1 != null)
+        _SensorInfo(
+          name: 'Material particulado PM1.0',
+          description: 'Campo "pm 1.0" do firmware antigo',
+          value: data.pm1!.toStringAsFixed(1),
+          unit: 'µg/m³',
+          icon: Icons.grain,
+        ),
     ];
 
     return SingleChildScrollView(
@@ -79,39 +84,30 @@ class SensorsScreen extends StatelessWidget {
         children: [
           const Text(
             'Sensores',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           const Text(
             'Acompanhe as medições e classificações individuais '
             'dos sensores do AirShield.',
-            style: TextStyle(
-              color: Color(0xFF9AA6AC),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Color(0xFF9AA6AC), fontSize: 14),
           ),
           const SizedBox(height: 24),
 
           ...sensors.map(
             (sensor) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _SensorCard(sensor: sensor),
+              child: _SensorCard(sensor: sensor, demo: demo),
             ),
           ),
 
           const SizedBox(height: 8),
           Text(
-            'Última atualização: '
+            'Recebido às '
             '${data.receivedAt.hour.toString().padLeft(2, '0')}:'
             '${data.receivedAt.minute.toString().padLeft(2, '0')}:'
             '${data.receivedAt.second.toString().padLeft(2, '0')}',
-            style: const TextStyle(
-              color: Color(0xFF9AA6AC),
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Color(0xFF9AA6AC), fontSize: 12),
           ),
         ],
       ),
@@ -139,11 +135,12 @@ class _SensorInfo {
 
 class _SensorCard extends StatelessWidget {
   final _SensorInfo sensor;
+  final bool demo;
 
-  const _SensorCard({required this.sensor});
+  const _SensorCard({required this.sensor, required this.demo});
 
   Color get statusColor {
-    if (sensor.quality == null) {
+    if (sensor.quality == null || !demo) {
       return const Color(0xFF9AA6AC);
     }
 
@@ -161,7 +158,11 @@ class _SensorCard extends StatelessWidget {
     }
   }
 
-  String get statusLabel => sensor.quality?.label ?? 'Informativo';
+  String get statusLabel => sensor.quality == null
+      ? 'Informativo'
+      : demo
+      ? sensor.quality!.label
+      : 'Código ${sensor.quality!.index}';
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +171,7 @@ class _SensorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B2228),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF272C38),
-        ),
+        border: Border.all(color: const Color(0xFF272C38)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,10 +185,7 @@ class _SensorCard extends StatelessWidget {
                   color: const Color(0xFF29453F),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  sensor.icon,
-                  color: const Color(0xFF55D6BE),
-                ),
+                child: Icon(sensor.icon, color: const Color(0xFF55D6BE)),
               ),
               const SizedBox(width: 12),
               Expanded(

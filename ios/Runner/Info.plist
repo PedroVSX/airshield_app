@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>O AirShield usa Bluetooth para identificar seu ESP32 e conectar à telemetria.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>O AirShield usa a rede local para receber medições do broker MQTT do seu ESP32.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

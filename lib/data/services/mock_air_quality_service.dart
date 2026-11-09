@@ -6,14 +6,13 @@ import '../models/air_quality_data.dart';
 
 class MockAirQualityService {
   final Random _random = Random();
-  bool _disposed = false;
-
-  Stream<AirQualityData> get stream async* {
-    while (!_disposed) {
-      yield _generateData();
-      await Future.delayed(const Duration(seconds: 3));
-    }
-  }
+  Stream<AirQualityData> get stream => Stream.multi((controller) {
+    controller.add(_generateData());
+    final timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      controller.add(_generateData());
+    });
+    controller.onCancel = timer.cancel;
+  });
 
   AirQualityData _generateData() {
     final co2 = _random.nextInt(500) + 500;
@@ -55,9 +54,5 @@ class MockAirQualityService {
     if (value < 98) return AirQuality.muitoRuim;
 
     return AirQuality.pessima;
-  }
-
-  void dispose() {
-    _disposed = true;
   }
 }
