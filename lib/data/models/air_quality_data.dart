@@ -89,6 +89,34 @@ class AirQualityData {
     );
   }
 
+  factory AirQualityData.empty() {
+    return AirQualityData(
+      co2: 0,
+      temperature: 0,
+      humidity: 0,
+      vocIndex: 0,
+      pm01: 0,
+      pm25: 0,
+      pm10: 0,
+  
+      // humidityQuality: AirQuality.boa,
+      // vocQuality: AirQuality.boa,
+      // co2Quality: AirQuality.boa,
+      // pm01Quality: AirQuality.boa,
+      // pm25Quality: AirQuality.boa,
+      // pm10Quality: AirQuality.boa,
+  
+      humidityQuality: AirQuality.boa,
+      vocQuality: AirQuality.boa,
+      co2Quality: AirQuality.boa,
+      pm01Quality: AirQuality.boa,
+      pm25Quality: AirQuality.boa,
+      pm10Quality: AirQuality.boa,
+
+      receivedAt: DateTime.now(),
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'medidas': {
