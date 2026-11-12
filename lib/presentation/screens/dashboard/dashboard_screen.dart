@@ -65,6 +65,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               case 1:
                 return SensorsScreen(data: data);
               case 2:
+                return const BluetoothDevicesScreen();
+              case 3:
                 return const HistoryScreen();
               default:
                 return _buildPlaceholderPage();
@@ -93,15 +95,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             label: 'Sensores',
           ),
           NavigationDestination(
+            icon: Icon(Icons.search_rounded),
+            selectedIcon: Icon(Icons.bluetooth_searching),
+            label: 'Dispositivos',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.show_chart_rounded),
             selectedIcon: Icon(Icons.insert_chart_rounded),
             label: 'Histórico',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Configurações',
-          ),
+          // NavigationDestination(
+          //   icon: Icon(Icons.settings_outlined),
+          //   selectedIcon: Icon(Icons.settings),
+          //   label: 'Configurações',
+          // ),
         ],
       ),
     );
@@ -171,7 +178,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           height: 48,
 
           decoration: BoxDecoration(
-            color: _primaryColor.withOpacity(0.12),
+            color: _primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(16),
           ),
 
@@ -307,7 +314,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: statusColor.withOpacity(0.25),
+          color: statusColor.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -319,7 +326,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -370,7 +377,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             width: double.infinity,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10),
+              color: Colors.white.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: FractionallySizedBox(
@@ -414,7 +421,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         icon: Icons.co2,
       ),
       _SensorData(
-        name: 'VOC',
+        name: 'COV',
         value: data.vocIndex.toStringAsFixed(0),
         unit: 'índice',
         icon: Icons.air,
@@ -476,7 +483,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
 
         border: Border.all(
-          color: Colors.white.withOpacity(0.04),
+          color: Colors.white.withValues(alpha: 0.04),
         ),
       ),
 
@@ -490,7 +497,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 height: 36,
 
                 decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.10),
+                  color: _primaryColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
 
@@ -586,7 +593,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Última atualização: $formattedTime • Simulação',
+            // 'Última atualização: $formattedTime • Simulação',
+            'Última atualização: $formattedTime',
             style: const TextStyle(
               color: _secondaryTextColor,
               fontSize: 12,
@@ -601,13 +609,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final titles = [
       'Início',
       'Sensores',
+      'Dispositivos',
       'Histórico',
-      'Configurações',
+      // 'Configurações',
     ];
 
     final descriptions = [
       'Visão geral da qualidade do ar.',
       'Detalhes das medições dos sensores.',
+      'Procure e conecte dispositivos AirShield.',
       'Histórico e gráficos das medições.',
       'Preferências e conexão do dispositivo.',
     ];
@@ -615,6 +625,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final icons = [
       Icons.home_rounded,
       Icons.sensors_rounded,
+      Icons.search,
       Icons.show_chart_rounded,
       Icons.settings_rounded,
     ];
@@ -689,15 +700,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Color _qualityColor(AirQuality quality) {
     switch (quality) {
       case AirQuality.boa:
-        return const Color(0xFF43B581);
+        return const Color(0xFF4EA62C);
       case AirQuality.moderada:
-        return const Color(0xFFF2B84B);
+        return const Color(0xFFf7d400);
       case AirQuality.ruim:
-        return const Color(0xFFFF914D);
+        return const Color(0xFFec8924);
       case AirQuality.muitoRuim:
-        return const Color(0xFFE85D75);
+        return const Color(0xFFcb0912);
       case AirQuality.pessima:
-        return const Color(0xFFB65DE8);
+        return const Color(0xFF950060);
     }
   }
 

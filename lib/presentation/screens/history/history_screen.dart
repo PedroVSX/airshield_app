@@ -166,8 +166,25 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  Widget _bottomTitle(double value, TitleMeta meta) {
+    return SideTitleWidget(
+      meta: meta,
+      child: Text(
+        value.toInt().toString(),
+        style: const TextStyle(
+          color: Color(0xFF9AA6AC),
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
   Widget _buildHistoryChart(List<AirQualityData> history) {
-    final values = history.map(_getValue).toList();
+    final visibleHistory = history.length > 20
+        ? history.sublist(history.length - 20)
+        : history;
+
+    final values = visibleHistory.map(_getValue).toList();
 
     final spots = List.generate(
       values.length,
@@ -244,7 +261,26 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       maxX: (spots.length - 1).toDouble(),
                       minY: minY,
                       maxY: maxY,
-                      titlesData: const FlTitlesData(show: false),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        leftTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 25,
+                            interval: 5,
+                            getTitlesWidget: _bottomTitle,
+                          ),
+                        ),
+                      ),
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,

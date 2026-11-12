@@ -31,8 +31,9 @@
 
     <!-- Notificações -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    
     <application
-        android:label="airshield_app"
+        android:label="Airshield Companion"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

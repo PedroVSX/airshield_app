@@ -1,19 +1,78 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/models/air_quality_data.dart';
-import '../data/services/mock_air_quality_service.dart';
+import '../domain/services/mqtt_service.dart';
 
-final airQualityStreamProvider = StreamProvider<AirQualityData>((ref) {
-  final service = MockAirQualityService();
+// Serviço MQTT compartilhado pelo aplicativo.
+final mqttServiceProvider = Provider<MqttService>((ref) {
+  final service = MqttService();
 
-  ref.onDispose(service.dispose);
+  ref.onDispose(() {
+    unawaited(service.dispose());
+  });
 
-  return service.stream;
+  return service;
 });
 
+// MAC do dispositivo atualmente selecionado.
+class SelectedAirShieldMacNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void selectDevice(String macAddress) {
+    state = macAddress;
+  }
+
+  void clearDevice() {
+    state = null;
+  }
+}
+
+final selectedAirShieldMacProvider =
+    NotifierProvider<SelectedAirShieldMacNotifier, String?>(
+  SelectedAirShieldMacNotifier.new,
+);
+
+// Dados de qualidade do ar.
+final airQualityStreamProvider = StreamProvider<AirQualityData>((ref) {
+  final macAddress = ref.watch(selectedAirShieldMacProvider);
+
+  // Sem dispositivo selecionado, utiliza dados simulados.
+  if (macAddress == null) {
+    return Stream.value(AirQualityData.empty());
+  }
+
+  final mqttService = ref.watch(mqttServiceProvider);
+
+  ref.onDispose(() {
+    unawaited(mqttService.disconnect());
+  });
+
+  return _mqttAirQualityStream(mqttService, macAddress);
+});
+
+// Converte mensagens MQTT em AirQualityData.
+Stream<AirQualityData> _mqttAirQualityStream(
+  MqttService service,
+  String macAddress,
+) async* {
+  await service.connectToDevice(macAddress);
+
+  yield* service.messages.map((payload) {
+    try {
+      return AirQualityData.fromMqttPayload(payload);
+    } catch (e) {
+      print('Erro ao converter JSON MQTT: $e');
+      rethrow;
+    }
+  });
+}
+
+// Histórico de medições.
 final airQualityHistoryProvider =
     AsyncNotifierProvider<AirQualityHistoryNotifier, List<AirQualityData>>(
   AirQualityHistoryNotifier.new,
@@ -27,6 +86,7 @@ class AirQualityHistoryNotifier
   late SharedPreferences _preferences;
 
   List<AirQualityData> _history = [];
+
   final List<AirQualityData> _pendingMeasurements = [];
 
   bool _initialized = false;
@@ -35,8 +95,7 @@ class AirQualityHistoryNotifier
 
   @override
   Future<List<AirQualityData>> build() async {
-    // Escuta as medições. Enquanto o armazenamento carrega,
-    // mantém as novas medições temporariamente em uma fila.
+    // Escuta novas medições.
     ref.listen<AsyncValue<AirQualityData>>(
       airQualityStreamProvider,
       (previous, next) {
@@ -59,11 +118,13 @@ class AirQualityHistoryNotifier
             );
           }).toList();
         }
-      } catch (_) {
+      } catch (e) {
+        print('Erro ao carregar histórico: $e');
         _history = [];
       }
     }
 
+    // Mantém somente as últimas 100 medições.
     if (_history.length > maxMeasurements) {
       _history = _history.sublist(
         _history.length - maxMeasurements,
@@ -72,7 +133,7 @@ class AirQualityHistoryNotifier
 
     _initialized = true;
 
-    // Incorpora as medições recebidas durante o carregamento.
+    // Incorpora medições recebidas durante o carregamento.
     for (final measurement in _pendingMeasurements) {
       _appendMeasurement(measurement);
     }
@@ -106,7 +167,7 @@ class AirQualityHistoryNotifier
 
     state = AsyncData(List.unmodifiable(_history));
 
-    // Mantém as gravações na ordem em que foram solicitadas.
+    // Salva as medições na ordem de recebimento.
     final snapshot = List<AirQualityData>.of(_history);
 
     _writeQueue = _writeQueue.then((_) async {
