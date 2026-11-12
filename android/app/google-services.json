@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "409465393424",
+    "project_id": "aishield-feedback",
+    "storage_bucket": "aishield-feedback.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:409465393424:android:5881831c4b74c9cc949595",
+        "android_client_info": {
+          "package_name": "com.example.airshield_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8Ee6xtm4PVnPzSMMVIvq8mylB_kCufBE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

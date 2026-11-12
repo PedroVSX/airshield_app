@@ -7,6 +7,9 @@ import '../../../domain/entities/air_quality.dart';
 
 import '../sensor_details/sensor_details_screen.dart';
 import '../history/history_screen.dart';
+import '../bluetooth_search_device/bluetooth_search_device_screen.dart';
+import 'package:airshield_app/domain/services/notification_service.dart';
+import 'package:airshield_app/presentation/screens/feedback/feedback_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -17,7 +20,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _selectedIndex = 0;
-
+  bool _alertActive = false;
   // Cores utilizadas na interface.
   static const Color _backgroundColor = Color(0xFF101418);
   static const Color _surfaceColor = Color(0xFF1B2228);
@@ -30,6 +33,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final airQualityAsync = ref.watch(airQualityStreamProvider);
     ref.watch(airQualityHistoryProvider);
 
+    ref.listen<AsyncValue<AirQualityData>>(
+      airQualityStreamProvider,
+      (previous, next) {
+        next.whenData((data) async {
+          final quality = _worstQuality(data);
+
+          if (quality.index >= AirQuality.moderada.index) {
+            if (!_alertActive) {
+              _alertActive = true;
+
+              await NotificationService.showAirQualityAlert(
+                quality.label,
+              );
+            }
+          } else {
+            _alertActive = false;
+          }
+        });
+      },
+    );
+    
     return Scaffold(
       backgroundColor: _backgroundColor,
       body: SafeArea(
@@ -186,7 +210,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
         ),
-
+        IconButton(
+          tooltip: 'Enviar feedback',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const FeedbackScreen(),
+              ),
+            );
+          },
+          icon: const Icon(
+            Icons.feedback_outlined,
+            color: _primaryColor,
+            size: 25,
+          ),
+        ),
         Container(
           padding: const EdgeInsets.symmetric(
             horizontal: 10,
