@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String mqttHost = 'broker.emqx.io';
+  static const String mqttHost = 'broker.hivemq.com';
   static const int mqttPort = 1883;
 
   static const String mqttTopicPrefix = 'airshield';

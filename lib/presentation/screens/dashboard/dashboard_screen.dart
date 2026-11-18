@@ -392,13 +392,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Dados simulados para desenvolvimento.',
-            style: TextStyle(
-              color: _secondaryTextColor,
-              fontSize: 11,
-            ),
-          ),
+          // const Text(
+          //   'Dados simulados para desenvolvimento.',
+          //   style: TextStyle(
+          //     color: _secondaryTextColor,
+          //     fontSize: 11,
+          //   ),
+          // ),
         ],
       ),
     );

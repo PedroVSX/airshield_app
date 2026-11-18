@@ -65,11 +65,12 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
       final isSupported = await FlutterBluePlus.isSupported;
 
       if (!isSupported) {
-        throw Exception('Este dispositivo não suporta Bluetooth BLE.');
+        throw Exception(
+          'Este dispositivo não suporta Bluetooth BLE.',
+        );
       }
 
-      final adapterState =
-          await FlutterBluePlus.adapterState.first;
+      final adapterState = await FlutterBluePlus.adapterState.first;
 
       if (adapterState != BluetoothAdapterState.on) {
         throw Exception(
@@ -79,25 +80,64 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
 
       await _scanSubscription?.cancel();
 
-      _scanSubscription =
-          FlutterBluePlus.onScanResults.listen((results) {
-        if (!mounted) return;
+      _scanSubscription = FlutterBluePlus.onScanResults.listen(
+        (results) {
+          if (!mounted) return;
 
-        setState(() {
-          for (final result in results) {
-            final name = result.device.platformName.isNotEmpty
-                ? result.device.platformName
-                : result.advertisementData.advName;
+          setState(() {
+            for (final result in results) {
+              final advName = result.advertisementData.advName;
+              final platformName = result.device.platformName;
 
-            // Mostra somente dispositivos AirShield.
-            if (name.toLowerCase().startsWith('airshield-')) {
-              final id = result.device.remoteId.str;
+              // Prioriza o nome recebido no advertising.
+              final name = advName.isNotEmpty
+                  ? advName
+                  : platformName;
 
-              _devices[id] = result;
+              print('==============================');
+              print('Nome advertising: $advName');
+              print('Nome platform: $platformName');
+              print('Remote ID: ${result.device.remoteId.str}');
+              print('Nome utilizado: $name');
+
+              if (!name.toLowerCase().startsWith('airshield-')) {
+                continue;
+              }
+
+              // Extrai o MAC anunciado pelo ESP32.
+              final macAddress = name
+                  .substring('airshield-'.length)
+                  .trim()
+                  .toUpperCase();
+
+              print('MAC extraído: $macAddress');
+              print('Tamanho MAC: ${macAddress.length}');
+
+              // Valida o MAC completo.
+              final macRegex = RegExp(
+                r'^([0-9A-F]{2}:){5}[0-9A-F]{2}$',
+              );
+
+              if (!macRegex.hasMatch(macAddress)) {
+                print('ERRO: MAC incompleto ou inválido!');
+                print('Dispositivo ignorado.');
+                print('==============================');
+                continue;
+              }
+
+              // Armazena utilizando o MAC Wi-Fi anunciado.
+              _devices[macAddress] = result;
+
+              print('AirShield encontrado!');
+              print('MAC válido: $macAddress');
+              print('==============================');
             }
-          }
-        });
-      });
+          });
+        },
+        onError: (error) {
+          print('Erro no escaneamento BLE: $error');
+        },
+      );
 
       await FlutterBluePlus.startScan(
         timeout: const Duration(seconds: 20),
@@ -109,6 +149,8 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
       setState(() {
         _errorMessage = e.toString();
       });
+
+      print('Erro ao iniciar busca BLE: $e');
     }
   }
 
@@ -768,6 +810,7 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
     );
   }
   
+
   Future<void> _connectToDevice(ScanResult result) async {
     final name = result.device.platformName.isNotEmpty
         ? result.device.platformName
@@ -775,7 +818,22 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
 
     if (!name.toLowerCase().startsWith('airshield-')) return;
 
-    final macAddress = name.substring('airshield-'.length);
+    final macAddress = name
+        .substring('airshield-'.length)
+        .trim()
+        .toUpperCase();
+
+    final macRegex = RegExp(r'^([0-9A-F]{2}:){5}[0-9A-F]{2}$');
+
+    print('MAC extraído para conexão: $macAddress');
+    print('Tamanho: ${macAddress.length}');
+
+    if (!macRegex.hasMatch(macAddress)) {
+      setState(() {
+        _errorMessage = 'Endereço MAC inválido: $macAddress';
+      });
+      return;
+    }
 
     await _selectDevice(macAddress);
 
@@ -783,6 +841,7 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
 
     await _saveDevice(result);
   }
+
 
   Future<void> _connectSavedDevice(String macAddress) async {
     if (macAddress.isEmpty) {
@@ -831,7 +890,6 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
     }
   }
 
-
   Future<void> _saveDevice(ScanResult result) async {
     final name = result.device.platformName.isNotEmpty
         ? result.device.platformName
@@ -839,10 +897,22 @@ class _BluetoothDevicesScreenState extends ConsumerState<BluetoothDevicesScreen>
 
     if (!name.toLowerCase().startsWith('airshield-')) return;
 
-    final macAddress = name.substring('airshield-'.length).trim();
+    final macAddress = name
+        .substring('airshield-'.length)
+        .trim()
+        .toUpperCase();
 
     print('Nome Bluetooth: $name');
     print('MAC extraído: $macAddress');
+    print('Tamanho MAC: ${macAddress.length}');
+    print('Remote ID BLE: ${result.device.remoteId.str}');
+
+    final macRegex = RegExp(r'^([0-9A-F]{2}:){5}[0-9A-F]{2}$');
+
+    if (!macRegex.hasMatch(macAddress)) {
+      print('ERRO: MAC inválido. Dispositivo não será salvo.');
+      return;
+    }
 
     await _savedDevicesService.saveDevice(name, macAddress);
 
