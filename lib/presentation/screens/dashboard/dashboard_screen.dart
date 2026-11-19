@@ -10,6 +10,7 @@ import '../history/history_screen.dart';
 import '../bluetooth_search_device/bluetooth_search_device_screen.dart';
 import 'package:airshield_app/domain/services/notification_service.dart';
 import 'package:airshield_app/presentation/screens/feedback/feedback_screen.dart';
+import 'package:airshield_app/presentation/screens/about/about_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -218,6 +219,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
         IconButton(
+          tooltip: 'Sobre o AirShield',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AboutScreen(),
+              ),
+            );
+          },
+          icon: const Icon(
+            Icons.info_outline_rounded,
+            color: _primaryColor,
+            size: 25,
+          ),
+        ),        
+
+        IconButton(
           tooltip: 'Enviar feedback',
           onPressed: () {
             Navigator.push(
@@ -244,27 +262,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             borderRadius: BorderRadius.circular(20),
           ),
 
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.circle,
-                size: 8,
-                color: Color(0xFFF2B84B),
-              ),
+          // child: const Row(
+          //   mainAxisSize: MainAxisSize.min,
+          //   children: [
+          //     Icon(
+          //       Icons.circle,
+          //       size: 8,
+          //       color: Color(0xFFF2B84B),
+          //     ),
 
-              SizedBox(width: 6),
+          //     SizedBox(width: 6),
 
-              Text(
-                'Demo',
-                style: TextStyle(
-                  color: Color(0xFFF2B84B),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+          //     Text(
+          //       'Demo',
+          //       style: TextStyle(
+          //         color: Color(0xFFF2B84B),
+          //         fontSize: 12,
+          //         fontWeight: FontWeight.w600,
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ),
       ],
     );

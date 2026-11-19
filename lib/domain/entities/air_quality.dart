@@ -39,7 +39,7 @@ enum AirQuality {
       case AirQuality.ruim:
         return 'Ruim';
       case AirQuality.muitoRuim:
-        return 'Muito ruim';
+        return 'Muito Ruim';
       case AirQuality.pessima:
         return 'Péssima';
     }
